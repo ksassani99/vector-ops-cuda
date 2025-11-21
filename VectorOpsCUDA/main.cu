@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stdlib.h>
 
 #include <vector>
 #include <cuda_runtime.h>
