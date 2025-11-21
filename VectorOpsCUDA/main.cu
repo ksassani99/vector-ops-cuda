@@ -13,3 +13,8 @@
             exit(EXIT_FAILURE);                                     \
         }                                                           \
     } while (0)
+
+int main() {
+    printf("CUDA project setup successful.\n");
+	return 0;
+}
