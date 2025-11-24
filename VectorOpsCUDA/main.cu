@@ -39,10 +39,28 @@ void kernel_vec_sub(const float* a, const float* b, float* c, int n) { // kernel
 
 __global__
 void kernel_vec_mul(const float* a, const float* b, float* c, int n) { // kernel for vec mul
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;                   // calculat global thread index
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;                   // calculate global thread index
 
     if (idx < n) {                                                     // only run if thread is within bounds
         c[idx] = a[idx] * b[idx];                                      // multiplying vectors element-wise
+    }
+}
+
+__global__
+void kernel_scalar_mul(const float* a, const float alpha , float* c, int n) { // kernel for scalar mul
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;                          // calculate global thread index
+
+    if (idx < n) {                                                            // only run if thread is within bounds
+        c[idx] = alpha * a[idx];                                              // scalar mul each element
+    }
+}
+
+__global__
+void kernel_saxpy(const float* x, float* y, const float alpha, int n) { // kernel for vec mul
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;                    // calculate global thread index
+
+    if (idx < n) {                                                      // only run if thread is within bounds
+        y[idx] = alpha * x[idx] + y[idx];                               // updates y as output after doing SAXPY
     }
 }
 
@@ -68,6 +86,22 @@ void cpu_vec_mul(const std::vector<float>& a, const std::vector<float>& b, std::
 
     for (size_t i = 0; i < n; ++i) {
         c[i] = a[i] * b[i];
+    }
+}
+
+void cpu_scalar_mul(const std::vector<float>& a, const float alpha, std::vector<float>& c) { // CPU kernel for scalar mul
+    std::size_t n = a.size();
+
+    for (size_t i = 0; i < n; ++i) {
+        c[i] = alpha * a[i];
+    }
+}
+
+void cpu_saxpy(const std::vector<float>& x, std::vector<float>& y, const float alpha) { // CPU kernel for saxpy
+    std::size_t n = x.size();
+
+    for (size_t i = 0; i < n; ++i) {
+        y[i] = alpha * x[i] + y[i];
     }
 }
 
@@ -147,7 +181,7 @@ int main() {
     // print first 10 results
     printf("First 10 results:\n");
     for (int i = 0; i < 10; ++i) {
-        printf("i=%d, a=%f, b=%f, c=%f\n", i, h_a[i], h_b[i], h_c[i]);
+        printf("i=%d, a=%f, b=%f, c_gpu=%f\n", i, h_a[i], h_b[i], h_c[i]);
         printf("i=%d, a=%f, b=%f, c_cpu=%f\n", i, h_a[i], h_b[i], h_ref[i]);
     }
 
@@ -164,7 +198,7 @@ int main() {
 	// print first 10 results
     printf("First 10 results:\n");
     for (int i = 0; i < 10; ++i) {
-        printf("i=%d, a=%f, b=%f, c=%f\n", i, h_a[i], h_b[i], h_c[i]);
+        printf("i=%d, a=%f, b=%f, c_gpu=%f\n", i, h_a[i], h_b[i], h_c[i]);
         printf("i=%d, a=%f, b=%f, c_cpu=%f\n", i, h_a[i], h_b[i], h_ref[i]);
     }
 
