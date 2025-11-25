@@ -64,6 +64,34 @@ void kernel_saxpy(const float* x, float* y, const float alpha, int n) { // kerne
     }
 }
 
+__global__
+void kernel_dot_partial(const float* a, const float* b, float* partial, int n) { // kernel for dot prod (does partial product per block)
+    extern __shared__ float sdata[]; // shared data for tree reduction sum
+    
+    int tid = threadIdx.x;
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    float val = 0.0f; // val for mul results to sum over
+    if (idx < n) {
+        val = a[idx] * b[idx];
+    }
+
+    sdata[tid] = val;
+    __syncthreads();
+
+    for (int s = blockDim.x / 2; s > 0; s >>= 1) {
+        if (tid < s) {
+            sdata[tid] = sdata[tid] + sdata[tid + s];
+        }
+
+        __syncthreads();
+    }
+
+    if (tid == 0) { // write total block sum into one part in partial sum
+        partial[blockIdx.x] = sdata[tid];
+    }
+}
+
 // ** CPU kernels (golden model, reference model)
 void cpu_vec_add(const std::vector<float>& a, const std::vector<float>& b, std::vector<float>& c) { // CPU kernel for vec add (no size n input b/c & is reference to full object
     std::size_t n = a.size();
@@ -103,6 +131,18 @@ void cpu_saxpy(const std::vector<float>& x, std::vector<float>& y, const float a
     for (size_t i = 0; i < n; ++i) {
         y[i] = alpha * x[i] + y[i];
     }
+}
+
+float cpu_dot(const std::vector<float>& a, const std::vector<float>& b) { // CPU kernel for dot prod
+    double acc = 0.0; // precise accumulated value (double for precise)
+
+    std::size_t n = a.size();
+
+    for (size_t i = 0; i < n; ++i) {
+        acc += (double)a[i] * (double)b[i];
+    }
+
+    return (float)acc;
 }
 
 float max_abs_error(const std::vector<float>& x, const std::vector<float>& y) { // max error between GPU and CPU output vectors
