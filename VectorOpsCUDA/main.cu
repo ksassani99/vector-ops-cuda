@@ -1,10 +1,12 @@
-#include <cuda_runtime.h>
-#include <device_launch_parameters.h>
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
 
-#include <stdio.h>
-
+#include <cstdio>
 #include <vector>
 #include <cmath>
+
+#include "vector_ops_kernels.cuh"
+#include "vector_ops_cpu.hpp"
 
 // CUDA error check macro, backslashes extend macro past one line, prints error message, exits program with failure code
 #define CUDA_CHECK(call)                                            \
@@ -17,145 +19,6 @@
             exit(EXIT_FAILURE);                                     \
         }                                                           \
     } while (0)
-
-// ** GPU kernels
-__global__ // tells complier this function is a kernel, run on GPU
-void kernel_vec_add(const float* a, const float* b, float* c, int n) { // kernel for vec add, pointers to device memory for const inputs a and b, pointer device memory for output c, size n dim of vectors
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;                   // calculate global thread index (using block index and thread index within block)
-
-    if (idx < n) {                                                     // only run thread if index is in bounds of total vector dim, avoid wasting threads
-        c[idx] = a[idx] + b[idx];                                      // adding vectors element-wise
-    }
-}
-
-__global__
-void kernel_vec_sub(const float* a, const float* b, float* c, int n) { // kernel for vec sub
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (idx < n) {
-        c[idx] = a[idx] - b[idx];
-    }
-}
-
-__global__
-void kernel_vec_mul(const float* a, const float* b, float* c, int n) { // kernel for vec mul
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (idx < n) {
-        c[idx] = a[idx] * b[idx];
-    }
-}
-
-__global__
-void kernel_scalar_mul(const float* a, const float alpha , float* c, int n) { // kernel for scalar mul
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (idx < n) {
-        c[idx] = alpha * a[idx];
-    }
-}
-
-__global__
-void kernel_saxpy(const float* x, float* y, const float alpha, int n) { // kernel for vec mul
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (idx < n) {
-        y[idx] = alpha * x[idx] + y[idx]; // updates y as output after doing SAXPY
-    }
-}
-
-__global__
-void kernel_dot_partial(const float* a, const float* b, float* partial, int n) { // kernel for dot prod (does partial product per block)
-    extern __shared__ float sdata[]; // shared data for tree reduction sum
-    
-    int tid = threadIdx.x;                           // thread id in block
-    int idx = blockIdx.x * blockDim.x + threadIdx.x; // global id for thread
-
-    float val = 0.0f; // val for mul results to sum over
-    if (idx < n) {
-        val = a[idx] * b[idx];
-    }
-
-    sdata[tid] = val;
-    __syncthreads(); // wait for all threads, important since next section depends on previous
-
-    for (int s = blockDim.x / 2; s > 0; s >>= 1) { // tree reduction sum for dot product (sum ends up being in sdata[0])
-        if (tid < s) {
-            sdata[tid] = sdata[tid] + sdata[tid + s];
-        }
-
-        __syncthreads(); // wait for all threads
-    }
-
-    if (tid == 0) { // write total block sum into one part in partial sum
-        partial[blockIdx.x] = sdata[tid];
-    }
-}
-
-// ** CPU kernels (golden model, reference model)
-void cpu_vec_add(const std::vector<float>& a, const std::vector<float>& b, std::vector<float>& c) { // CPU kernel for vec add
-    std::size_t n = a.size(); // no size n input b/c & is reference to full object
-
-    for (size_t i = 0; i < n; ++i) { // not parallel, uses for loop to do operations on vector entries
-        c[i] = a[i] + b[i];
-    }
-}
-
-void cpu_vec_sub(const std::vector<float>& a, const std::vector<float>& b, std::vector<float>& c) { // CPU kernel for vec sub
-    std::size_t n = a.size();
-
-    for (size_t i = 0; i < n; ++i) {
-        c[i] = a[i] - b[i];
-    }
-}
-
-void cpu_vec_mul(const std::vector<float>& a, const std::vector<float>& b, std::vector<float>& c) { // CPU kernel for vec mul
-    std::size_t n = a.size();
-
-    for (size_t i = 0; i < n; ++i) {
-        c[i] = a[i] * b[i];
-    }
-}
-
-void cpu_scalar_mul(const std::vector<float>& a, const float alpha, std::vector<float>& c) { // CPU kernel for scalar mul
-    std::size_t n = a.size();
-
-    for (size_t i = 0; i < n; ++i) {
-        c[i] = alpha * a[i];
-    }
-}
-
-void cpu_saxpy(const std::vector<float>& x, std::vector<float>& y, const float alpha) { // CPU kernel for saxpy
-    std::size_t n = x.size();
-
-    for (size_t i = 0; i < n; ++i) {
-        y[i] = alpha * x[i] + y[i];
-    }
-}
-
-float cpu_dot(const std::vector<float>& a, const std::vector<float>& b) { // CPU kernel for dot prod
-    float acc = 0.0f; // accumulated value
-
-    std::size_t n = a.size();
-
-    for (size_t i = 0; i < n; ++i) {
-        acc += a[i] * b[i];
-    }
-
-    return acc;
-}
-
-float max_abs_error(const std::vector<float>& x, const std::vector<float>& y) { // max error between GPU and CPU output vectors
-    float max_err = 0.0f; // max error value
-    std::size_t n = x.size();
-
-    for (size_t i = 0; i < n; ++i) { // from every entry of output vectors, find max error for both vectors
-        float diff = std::fabs(x[i] - y[i]);
-        if (diff > max_err) max_err = diff;
-    }
-
-    return max_err; // return float max error
-}
 
 int main() {
 	const int N = 1 << 16;                                // vector size 2^16
