@@ -68,16 +68,19 @@ tests started: N = 65536
 
 vec_add max error: 0.000000e+00
 i=0, a=0.000, b=0.000, c_gpu=0.000
-i=1, a=1.000, b=2.000, c_gpu=3.000
+i=0, a=0.000, b=0.000, c_cpu=0.000
 
 vec_mul max error: 0.000000e+00
 i=1, a=1.000, b=2.000, c_gpu=2.000
+i=1, a=1.000, b=2.000, c_cpu=2.000
 
 scalar_mul max error: 0.000000e+00
 i=3, a=3.000, alpha=3.500, c_gpu=10.500
+i=3, a=3.000, alpha=3.500, c_cpu=10.500
 
 saxpy max error: 0.000000e+00
 i=2, a=2.000, b=4.000, alpha=3.500, c_gpu=11.000
+i=2, a=2.000, b=4.000, alpha=3.500, c_cpu=11.000
 
 dot abs error: 1.192093e-07
 dot rel error: 2.465190e-09
